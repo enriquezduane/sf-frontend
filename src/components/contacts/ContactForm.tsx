@@ -1,19 +1,34 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { Fragment, useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { AlertCircle, Loader2 } from "lucide-react";
 import Field from "@/components/ui/Field";
 import Button, { buttonClasses } from "@/components/ui/Button";
+import AddressesField from "@/components/contacts/AddressesField";
 import PhotoField from "@/components/contacts/PhotoField";
 import { CONTACT_FIELD_GROUPS } from "@/lib/contacts/schema";
 import {
   EMPTY_FORM_STATE,
+  type Address,
+  type AddressFormRow,
   type Contact,
-  type ContactInput,
+  type ContactTextField,
   type FormState,
 } from "@/lib/contacts/types";
+
+/** A stored address as the raw strings the form inputs expect. */
+function addressToRow(address: Address): AddressFormRow {
+  return {
+    type: address.type,
+    street: address.street,
+    city: address.city ?? "",
+    state: address.state ?? "",
+    postal_code: address.postal_code ?? "",
+    country: address.country ?? "",
+  };
+}
 
 export type ContactFormAction = (
   state: FormState,
@@ -54,9 +69,12 @@ export default function ContactForm({
   // previous value — submitting then would save the wrong image.
   const [photoReading, setPhotoReading] = useState(false);
 
-  function valueFor(name: keyof ContactInput): string {
+  function valueFor(name: ContactTextField): string {
     return state.values?.[name] ?? contact?.[name] ?? "";
   }
+
+  const initialAddresses =
+    state.values?.addresses ?? contact?.addresses.map(addressToRow) ?? [];
 
   return (
     <form action={formAction} noValidate className="space-y-8">
@@ -94,29 +112,51 @@ export default function ContactForm({
       </fieldset>
 
       {CONTACT_FIELD_GROUPS.map((group) => (
-        <fieldset key={group.title} className="space-y-4">
-          <legend className="sr-only">{group.title}</legend>
+        <Fragment key={group.title}>
+          <fieldset className="space-y-4">
+            <legend className="sr-only">{group.title}</legend>
 
-          <div className="border-b border-hairline pb-2">
-            <h2 className="font-display text-sm font-semibold text-foreground">
-              {group.title}
-            </h2>
-            <p className="text-[13px] text-muted-foreground">
-              {group.description}
-            </p>
-          </div>
+            <div className="border-b border-hairline pb-2">
+              <h2 className="font-display text-sm font-semibold text-foreground">
+                {group.title}
+              </h2>
+              <p className="text-[13px] text-muted-foreground">
+                {group.description}
+              </p>
+            </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            {group.fields.map((field) => (
-              <Field
-                key={field.name}
-                field={field}
-                defaultValue={valueFor(field.name)}
-                error={state.fieldErrors?.[field.name]}
+            <div className="grid gap-4 sm:grid-cols-2">
+              {group.fields.map((field) => (
+                <Field
+                  key={field.name}
+                  field={field}
+                  defaultValue={valueFor(field.name)}
+                  error={state.fieldErrors?.[field.name]}
+                />
+              ))}
+            </div>
+          </fieldset>
+
+          {group.title === "Work" ? (
+            <fieldset className="space-y-4">
+              <legend className="sr-only">Addresses</legend>
+
+              <div className="border-b border-hairline pb-2">
+                <h2 className="font-display text-sm font-semibold text-foreground">
+                  Addresses
+                </h2>
+                <p className="text-[13px] text-muted-foreground">
+                  Any number of home, work, or other postal addresses.
+                </p>
+              </div>
+
+              <AddressesField
+                initialAddresses={initialAddresses}
+                error={state.fieldErrors?.addresses}
               />
-            ))}
-          </div>
-        </fieldset>
+            </fieldset>
+          ) : null}
+        </Fragment>
       ))}
 
       <div className="flex items-center gap-2 border-t border-hairline pt-4">

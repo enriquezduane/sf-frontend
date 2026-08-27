@@ -1,6 +1,7 @@
 import type { ContactFieldSpec } from "@/lib/contacts/schema";
 
-const CONTROL =
+/** Shared look of every form control, so ad-hoc inputs match `Field`. */
+export const CONTROL =
   "w-full rounded-md border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 transition-colors focus:bg-input";
 
 /**

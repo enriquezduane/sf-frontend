@@ -1,11 +1,27 @@
 import {
+  addressInputName,
   CONTACT_INPUT_NAMES,
   contactInputSchema,
   formDataToValues,
   zodFieldErrors,
 } from "@/lib/contacts/schema";
+import type { AddressFormRow } from "@/lib/contacts/types";
 
-function values(overrides: Record<string, string> = {}) {
+function addressRow(overrides: Partial<AddressFormRow> = {}): AddressFormRow {
+  return {
+    type: "Home",
+    street: "1 Market St",
+    city: "",
+    state: "",
+    postal_code: "",
+    country: "",
+    ...overrides,
+  };
+}
+
+function values(
+  overrides: Record<string, string | AddressFormRow[]> = {},
+) {
   return {
     first_name: "Ada",
     last_name: "Lovelace",
@@ -13,11 +29,7 @@ function values(overrides: Record<string, string> = {}) {
     phone: "",
     company: "",
     job_title: "",
-    address: "",
-    city: "",
-    state: "",
-    postal_code: "",
-    country: "",
+    addresses: [] as AddressFormRow[],
     notes: "",
     ...overrides,
   };
@@ -71,13 +83,50 @@ describe("contactInputSchema", () => {
 
   it("enforces the API's length limits", () => {
     const result = contactInputSchema.safeParse(
-      values({ first_name: "a".repeat(101), postal_code: "9".repeat(21) }),
+      values({ first_name: "a".repeat(101), company: "c".repeat(201) }),
     );
 
     expect(zodFieldErrors(result.error!)).toEqual({
       first_name: "First name must be 100 characters or fewer",
-      postal_code: "Postal code must be 20 characters or fewer",
+      company: "Company must be 200 characters or fewer",
     });
+  });
+
+  it("parses address rows and nulls out their blanks", () => {
+    const parsed = contactInputSchema.parse(
+      values({ addresses: [addressRow({ city: "  London  " })] }),
+    );
+
+    expect(parsed.addresses).toEqual([
+      {
+        type: "Home",
+        street: "1 Market St",
+        city: "London",
+        state: null,
+        postal_code: null,
+        country: null,
+      },
+    ]);
+  });
+
+  it("requires a street on every address row, labelled with its position", () => {
+    const result = contactInputSchema.safeParse(
+      values({ addresses: [addressRow(), addressRow({ street: " " })] }),
+    );
+
+    expect(zodFieldErrors(result.error!)).toEqual({
+      addresses: "Address 2: Street is required",
+    });
+  });
+
+  it("rejects an unknown address type", () => {
+    const result = contactInputSchema.safeParse(
+      values({ addresses: [addressRow({ type: "Castle" })] }),
+    );
+
+    expect(zodFieldErrors(result.error!).addresses).toBe(
+      "Address 1: Pick Home, Work, or Other",
+    );
   });
 });
 
@@ -92,6 +141,26 @@ describe("formDataToValues", () => {
 
     expect(extracted.first_name).toBe("Grace");
     expect(extracted.last_name).toBe("");
-    expect(Object.keys(extracted).sort()).toEqual([...CONTACT_INPUT_NAMES].sort());
+    expect(extracted.addresses).toEqual([]);
+    expect(Object.keys(extracted).sort()).toEqual(
+      [...CONTACT_INPUT_NAMES, "addresses"].sort(),
+    );
+  });
+
+  it("zips repeated address inputs back into rows in DOM order", () => {
+    const formData = new FormData();
+    for (const row of [
+      addressRow({ type: "Work", street: "1 Market St", city: "SF" }),
+      addressRow({ type: "Home", street: "221B Baker St", city: "London" }),
+    ]) {
+      for (const [field, value] of Object.entries(row)) {
+        formData.append(addressInputName(field as keyof AddressFormRow), value);
+      }
+    }
+
+    expect(formDataToValues(formData).addresses).toEqual([
+      addressRow({ type: "Work", street: "1 Market St", city: "SF" }),
+      addressRow({ type: "Home", street: "221B Baker St", city: "London" }),
+    ]);
   });
 });

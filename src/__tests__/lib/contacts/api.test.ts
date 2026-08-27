@@ -24,11 +24,16 @@ const INPUT: ContactInput = {
   phone: null,
   company: null,
   job_title: null,
-  address: null,
-  city: null,
-  state: null,
-  postal_code: null,
-  country: null,
+  addresses: [
+    {
+      type: "Home",
+      street: "221B Baker St",
+      city: "London",
+      state: null,
+      postal_code: null,
+      country: "UK",
+    },
+  ],
   notes: null,
   photo: null,
 };
@@ -159,6 +164,26 @@ describe("error translation", () => {
     expect(toFieldErrors(error)).toEqual({
       email: "value is not a valid email address",
       first_name: "String should have at least 1 character",
+    });
+  });
+
+  it("collapses nested address issues onto the addresses key with their row", () => {
+    const error = new ApiError(
+      422,
+      JSON.stringify({
+        detail: [
+          {
+            loc: ["body", "addresses", 1, "street"],
+            msg: "String should have at least 1 character",
+          },
+          { loc: ["body", "addresses", 0, "type"], msg: "Input should be 'Home', 'Work' or 'Other'" },
+        ],
+      }),
+    );
+
+    // First issue wins; it is never filed under a top-level `street` key.
+    expect(toFieldErrors(error)).toEqual({
+      addresses: "Address 2: String should have at least 1 character",
     });
   });
 

@@ -25,15 +25,33 @@ describe("ContactForm", () => {
     expect(screen.getByLabelText(/^email/i)).toBeRequired();
     expect(screen.getByLabelText(/phone/i)).not.toBeRequired();
     expect(screen.getByLabelText(/notes/i).tagName).toBe("TEXTAREA");
+    // A fresh form starts with no address rows, only the add button.
+    expect(screen.getByRole("button", { name: /add address/i })).toBeEnabled();
+    expect(screen.queryByLabelText(/street/i)).not.toBeInTheDocument();
   });
 
-  it("prefills from an existing contact", () => {
+  it("prefills from an existing contact, including its address rows", () => {
     renderForm(jest.fn(), makeContact());
 
     expect(screen.getByLabelText(/first name/i)).toHaveValue("Ada");
     expect(screen.getByLabelText(/^email/i)).toHaveValue("ada@example.com");
+    expect(screen.getByLabelText(/type/i)).toHaveValue("Work");
+    expect(screen.getByLabelText(/street/i)).toHaveValue("1 Market St, Suite 400");
     // Nulls become empty inputs rather than the string "null".
-    expect(screen.getByLabelText(/street address/i)).toHaveValue("");
+    expect(screen.getByLabelText(/postal code/i)).toHaveValue("");
+  });
+
+  it("adds and removes address rows", async () => {
+    renderForm(jest.fn());
+
+    await userEvent.click(screen.getByRole("button", { name: /add address/i }));
+    await userEvent.click(screen.getByRole("button", { name: /add address/i }));
+    expect(screen.getAllByLabelText(/street/i)).toHaveLength(2);
+
+    await userEvent.click(
+      screen.getAllByRole("button", { name: /remove/i })[0],
+    );
+    expect(screen.getAllByLabelText(/street/i)).toHaveLength(1);
   });
 
   it("submits the entered values to the action", async () => {
@@ -45,6 +63,11 @@ describe("ContactForm", () => {
     await userEvent.type(screen.getByLabelText(/first name/i), "Grace");
     await userEvent.type(screen.getByLabelText(/last name/i), "Hopper");
     await userEvent.type(screen.getByLabelText(/^email/i), "grace@example.com");
+
+    await userEvent.click(screen.getByRole("button", { name: /add address/i }));
+    await userEvent.selectOptions(screen.getByLabelText(/type/i), "Work");
+    await userEvent.type(screen.getByLabelText(/street/i), "1000 Navy Pentagon");
+
     await userEvent.click(screen.getByRole("button", { name: /create contact/i }));
 
     await waitFor(() => expect(action).toHaveBeenCalled());
@@ -52,6 +75,8 @@ describe("ContactForm", () => {
     const formData = action.mock.calls[0][1];
     expect(formData.get("first_name")).toBe("Grace");
     expect(formData.get("email")).toBe("grace@example.com");
+    expect(formData.getAll("address_type")).toEqual(["Work"]);
+    expect(formData.getAll("address_street")).toEqual(["1000 Navy Pentagon"]);
   });
 
   it("holds the submit until a chosen photo has finished reading", async () => {
