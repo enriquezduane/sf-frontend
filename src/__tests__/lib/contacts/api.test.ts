@@ -167,6 +167,26 @@ describe("error translation", () => {
     });
   });
 
+  it("collapses nested address issues onto the addresses key with their row", () => {
+    const error = new ApiError(
+      422,
+      JSON.stringify({
+        detail: [
+          {
+            loc: ["body", "addresses", 1, "street"],
+            msg: "String should have at least 1 character",
+          },
+          { loc: ["body", "addresses", 0, "type"], msg: "Input should be 'Home', 'Work' or 'Other'" },
+        ],
+      }),
+    );
+
+    // First issue wins; it is never filed under a top-level `street` key.
+    expect(toFieldErrors(error)).toEqual({
+      addresses: "Address 2: String should have at least 1 character",
+    });
+  });
+
   it("returns nothing for a non-validation body", () => {
     expect(toFieldErrors(new ApiError(500, "boom"))).toEqual({});
   });
