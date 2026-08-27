@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ContactForm from "@/components/contacts/ContactForm";
 import { makeContact } from "../mocks/handlers";
@@ -52,6 +52,22 @@ describe("ContactForm", () => {
     const formData = action.mock.calls[0][1];
     expect(formData.get("first_name")).toBe("Grace");
     expect(formData.get("email")).toBe("grace@example.com");
+  });
+
+  it("holds the submit until a chosen photo has finished reading", async () => {
+    renderForm(jest.fn());
+
+    const submit = screen.getByRole("button", { name: /create contact/i });
+    const file = new File(["fake-image-bytes"], "ada.png", { type: "image/png" });
+    fireEvent.change(screen.getByLabelText(/choose a contact photo/i), {
+      target: { files: [file] },
+    });
+
+    // The FileReader is still running: submitting now would post the old value.
+    expect(submit).toBeDisabled();
+
+    await waitFor(() => expect(submit).toBeEnabled());
+    expect(screen.getByAltText(/photo preview/i)).toBeInTheDocument();
   });
 
   it("shows the summary and the per-field errors the action returns", async () => {

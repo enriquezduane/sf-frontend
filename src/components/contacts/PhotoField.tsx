@@ -15,13 +15,24 @@ import { MAX_PHOTO_BYTES } from "@/lib/contacts/schema";
 export default function PhotoField({
   initialPhoto,
   error,
+  onReadingChange,
 }: {
   initialPhoto: string | null;
   error?: string;
+  /** Fired when a file read starts/finishes so the form can hold the submit. */
+  onReadingChange?: (reading: boolean) => void;
 }) {
   const [photo, setPhoto] = useState<string | null>(initialPhoto);
   const [fileError, setFileError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // The read currently allowed to update state; anything older is stale.
+  const readerRef = useRef<FileReader | null>(null);
+
+  function cancelPendingRead() {
+    readerRef.current?.abort();
+    readerRef.current = null;
+    onReadingChange?.(false);
+  }
 
   function handleFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -38,16 +49,29 @@ export default function PhotoField({
       return;
     }
 
+    cancelPendingRead();
     const reader = new FileReader();
+    readerRef.current = reader;
+    onReadingChange?.(true);
     reader.onload = () => {
+      if (readerRef.current !== reader) return;
       setFileError(null);
       setPhoto(typeof reader.result === "string" ? reader.result : null);
     };
-    reader.onerror = () => setFileError("The image could not be read.");
+    reader.onerror = () => {
+      if (readerRef.current !== reader) return;
+      setFileError("The image could not be read.");
+    };
+    reader.onloadend = () => {
+      if (readerRef.current !== reader) return;
+      readerRef.current = null;
+      onReadingChange?.(false);
+    };
     reader.readAsDataURL(file);
   }
 
   function removePhoto() {
+    cancelPendingRead();
     setFileError(null);
     setPhoto(null);
   }
