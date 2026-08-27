@@ -59,6 +59,17 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_BUILD_NUMBER: buildNumber,
     NEXT_PUBLIC_GIT_SHA: gitSha,
   },
+  experimental: {
+    serverActions: {
+      // The contact form posts the photo as a base64 data URL inside the Server
+      // Action body. The API stores data URLs up to 5,000,000 characters (~5 MB —
+      // MAX_PHOTO_LENGTH in src/lib/contacts/schema.ts), and an edit re-submits the
+      // stored value, so the 1 MB default rejected legitimate saves with a 413.
+      // 6 MB covers the largest stored photo plus all other fields and multipart
+      // overhead.
+      bodySizeLimit: "6mb",
+    },
+  },
 };
 
 export default nextConfig;

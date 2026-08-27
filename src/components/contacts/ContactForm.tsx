@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { AlertCircle, Loader2 } from "lucide-react";
 import Field from "@/components/ui/Field";
 import Button, { buttonClasses } from "@/components/ui/Button";
+import PhotoField from "@/components/contacts/PhotoField";
 import { CONTACT_FIELD_GROUPS } from "@/lib/contacts/schema";
 import {
   EMPTY_FORM_STATE,
@@ -19,11 +20,11 @@ export type ContactFormAction = (
   formData: FormData,
 ) => Promise<FormState>;
 
-function SubmitButton({ label }: { label: string }) {
+function SubmitButton({ label, disabled }: { label: string; disabled?: boolean }) {
   const { pending } = useFormStatus();
 
   return (
-    <Button type="submit" disabled={pending}>
+    <Button type="submit" disabled={pending || disabled}>
       {pending ? (
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
       ) : null}
@@ -49,6 +50,9 @@ export default function ContactForm({
   cancelHref: string;
 }) {
   const [state, formAction] = useActionState(action, EMPTY_FORM_STATE);
+  // While a chosen file is still being read, the hidden photo input holds the
+  // previous value — submitting then would save the wrong image.
+  const [photoReading, setPhotoReading] = useState(false);
 
   function valueFor(name: keyof ContactInput): string {
     return state.values?.[name] ?? contact?.[name] ?? "";
@@ -69,6 +73,25 @@ export default function ContactForm({
           <span>{state.message}</span>
         </div>
       ) : null}
+
+      <fieldset className="space-y-4">
+        <legend className="sr-only">Photo</legend>
+
+        <div className="border-b border-hairline pb-2">
+          <h2 className="font-display text-sm font-semibold text-foreground">
+            Photo
+          </h2>
+          <p className="text-[13px] text-muted-foreground">
+            Optional picture shown on the contact&apos;s avatar.
+          </p>
+        </div>
+
+        <PhotoField
+          initialPhoto={state.values?.photo ?? contact?.photo ?? null}
+          error={state.fieldErrors?.photo}
+          onReadingChange={setPhotoReading}
+        />
+      </fieldset>
 
       {CONTACT_FIELD_GROUPS.map((group) => (
         <fieldset key={group.title} className="space-y-4">
@@ -97,7 +120,7 @@ export default function ContactForm({
       ))}
 
       <div className="flex items-center gap-2 border-t border-hairline pt-4">
-        <SubmitButton label={submitLabel} />
+        <SubmitButton label={submitLabel} disabled={photoReading} />
         <Link href={cancelHref} className={buttonClasses("secondary")}>
           Cancel
         </Link>
