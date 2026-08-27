@@ -78,6 +78,7 @@ export default async function ContactDetailPage({ params }: PageProps) {
           <DeleteContactButton
             contactId={contact.id}
             contactName={contact.full_name}
+            contact={contact}
             redirectToList
             variant="danger"
             size="md"

@@ -4,15 +4,20 @@ import { useState, useTransition } from "react";
 import { Loader2, Trash2 } from "lucide-react";
 import { deleteContactAction } from "@/app/contacts/actions";
 import Button, { type ButtonSize, type ButtonVariant } from "@/components/ui/Button";
+import DeleteBattleModal, { type BattleContact } from "./DeleteBattleModal";
 
 /**
  * Two-step delete: the first click swaps the button for an explicit
  * confirm/cancel pair, so there is no way to lose a contact to a stray click
  * and no `window.confirm` to trip up tests or screen readers.
+ *
+ * When the full contact is provided, clicking delete instead opens the retro
+ * "Battle to Delete" modal — the contact must be defeated before deletion.
  */
 export default function DeleteContactButton({
   contactId,
   contactName,
+  contact,
   redirectToList = false,
   variant = "ghost",
   size = "sm",
@@ -20,12 +25,15 @@ export default function DeleteContactButton({
 }: {
   contactId: number;
   contactName: string;
+  /** Enables the "Battle to Delete" flow; omit for the plain inline confirm. */
+  contact?: BattleContact;
   redirectToList?: boolean;
   variant?: ButtonVariant;
   size?: ButtonSize;
   withLabel?: boolean;
 }) {
   const [confirming, setConfirming] = useState(false);
+  const [battling, setBattling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -36,8 +44,14 @@ export default function DeleteContactButton({
       if (result?.error) {
         setError(result.error);
         setConfirming(false);
+        setBattling(false);
       }
     });
+  }
+
+  function beginDelete() {
+    if (contact) setBattling(true);
+    else setConfirming(true);
   }
 
   if (!confirming) {
@@ -46,7 +60,7 @@ export default function DeleteContactButton({
         <Button
           variant={variant}
           size={size}
-          onClick={() => setConfirming(true)}
+          onClick={beginDelete}
           aria-label={`Delete ${contactName}`}
           className={variant === "ghost" ? "hover:text-destructive" : undefined}
         >
@@ -57,6 +71,14 @@ export default function DeleteContactButton({
           <span role="alert" className="text-[13px] text-destructive">
             {error}
           </span>
+        ) : null}
+        {battling && contact ? (
+          <DeleteBattleModal
+            contact={contact}
+            isDeleting={isPending}
+            onDefeat={remove}
+            onRun={() => setBattling(false)}
+          />
         ) : null}
       </span>
     );

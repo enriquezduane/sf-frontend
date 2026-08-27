@@ -108,6 +108,7 @@ export default function ContactsTable({
                     <DeleteContactButton
                       contactId={contact.id}
                       contactName={contact.full_name}
+                      contact={contact}
                     />
                   </div>
                 </td>

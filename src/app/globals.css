@@ -134,4 +134,50 @@
     background: rgb(var(--border));
     border-radius: 9999px;
   }
+
+  /* "Battle to Delete" easter egg. All battle animation is disabled under
+     prefers-reduced-motion; the flash overlay defaults to invisible so it
+     never sticks when its animation is turned off. */
+  .battle-bounce {
+    animation: battle-bounce 1.6s ease-in-out infinite;
+  }
+  .battle-shake {
+    animation: battle-shake 0.3s linear;
+  }
+  .battle-faint {
+    animation: battle-faint 0.7s ease-in forwards;
+  }
+  .battle-flash {
+    opacity: 0;
+    animation: battle-flash 0.45s ease-out forwards;
+  }
+
+  @keyframes battle-bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+  }
+  @keyframes battle-shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-5px); }
+    40% { transform: translateX(5px); }
+    60% { transform: translateX(-3px); }
+    80% { transform: translateX(3px); }
+  }
+  @keyframes battle-faint {
+    0% { transform: translateY(0) rotate(0); opacity: 1; }
+    100% { transform: translateY(14px) rotate(90deg); opacity: 0; }
+  }
+  @keyframes battle-flash {
+    0% { opacity: 0.9; }
+    100% { opacity: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .battle-bounce,
+    .battle-shake,
+    .battle-faint,
+    .battle-flash {
+      animation: none;
+    }
+  }
 }
