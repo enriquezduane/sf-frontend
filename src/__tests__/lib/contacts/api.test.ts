@@ -24,11 +24,16 @@ const INPUT: ContactInput = {
   phone: null,
   company: null,
   job_title: null,
-  address: null,
-  city: null,
-  state: null,
-  postal_code: null,
-  country: null,
+  addresses: [
+    {
+      type: "Home",
+      street: "221B Baker St",
+      city: "London",
+      state: null,
+      postal_code: null,
+      country: "UK",
+    },
+  ],
   notes: null,
   photo: null,
 };

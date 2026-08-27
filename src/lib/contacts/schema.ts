@@ -1,5 +1,12 @@
 import { z } from "zod";
-import type { ContactInput } from "./types";
+import {
+  ADDRESS_TYPES,
+  MAX_ADDRESSES,
+  type AddressFormRow,
+  type AddressInput,
+  type ContactInput,
+  type ContactTextField,
+} from "./types";
 
 /**
  * Client/server-shared validation for the contact form.
@@ -34,6 +41,16 @@ function requiredText(max: number, label: string) {
     .max(max, `${label} must be ${max} characters or fewer`);
 }
 
+/** One address row; mirrors the API's `AddressCreate`. */
+export const addressInputSchema = z.object({
+  type: z.enum(ADDRESS_TYPES, "Pick Home, Work, or Other"),
+  street: requiredText(300, "Street"),
+  city: optionalText(120, "City"),
+  state: optionalText(120, "State"),
+  postal_code: optionalText(20, "Postal code"),
+  country: optionalText(120, "Country"),
+}) satisfies z.ZodType<AddressInput, unknown>;
+
 export const contactInputSchema = z.object({
   first_name: requiredText(100, "First name"),
   last_name: requiredText(100, "Last name"),
@@ -47,11 +64,10 @@ export const contactInputSchema = z.object({
   phone: optionalText(40, "Phone"),
   company: optionalText(200, "Company"),
   job_title: optionalText(200, "Job title"),
-  address: optionalText(300, "Address"),
-  city: optionalText(120, "City"),
-  state: optionalText(120, "State"),
-  postal_code: optionalText(20, "Postal code"),
-  country: optionalText(120, "Country"),
+  addresses: z
+    .array(addressInputSchema)
+    .max(MAX_ADDRESSES, `A contact can have at most ${MAX_ADDRESSES} addresses`)
+    .default([]),
   notes: z
     .string()
     .trim()
@@ -73,16 +89,23 @@ export const contactInputSchema = z.object({
 
 export type ContactFormValues = z.input<typeof contactInputSchema>;
 
-/** Collapse a ZodError into one message per field, keyed by input name. */
+/**
+ * Collapse a ZodError into one message per field, keyed by input name.
+ * Address issues collapse onto the `addresses` key, labelled with their row.
+ */
 export function zodFieldErrors(
   error: z.ZodError,
 ): Partial<Record<keyof ContactInput, string>> {
   const fieldErrors: Partial<Record<keyof ContactInput, string>> = {};
   for (const issue of error.issues) {
     const key = issue.path[0];
-    if (typeof key === "string" && !(key in fieldErrors)) {
-      fieldErrors[key as keyof ContactInput] = issue.message;
-    }
+    if (typeof key !== "string" || key in fieldErrors) continue;
+
+    const row = issue.path[1];
+    fieldErrors[key as keyof ContactInput] =
+      key === "addresses" && typeof row === "number"
+        ? `Address ${row + 1}: ${issue.message}`
+        : issue.message;
   }
   return fieldErrors;
 }
@@ -92,7 +115,7 @@ export function zodFieldErrors(
 /* ------------------------------------------------------------------ */
 
 export interface ContactFieldSpec {
-  name: keyof ContactInput;
+  name: ContactTextField;
   label: string;
   type?: "text" | "email" | "tel" | "textarea";
   required?: boolean;
@@ -170,48 +193,6 @@ export const CONTACT_FIELD_GROUPS: ContactFieldGroup[] = [
     ],
   },
   {
-    title: "Address",
-    description: "Optional postal details.",
-    fields: [
-      {
-        name: "address",
-        label: "Street address",
-        maxLength: 300,
-        placeholder: "1 Market St, Suite 400",
-        autoComplete: "street-address",
-        wide: true,
-      },
-      {
-        name: "city",
-        label: "City",
-        maxLength: 120,
-        placeholder: "San Francisco",
-        autoComplete: "address-level2",
-      },
-      {
-        name: "state",
-        label: "State / region",
-        maxLength: 120,
-        placeholder: "CA",
-        autoComplete: "address-level1",
-      },
-      {
-        name: "postal_code",
-        label: "Postal code",
-        maxLength: 20,
-        placeholder: "94105",
-        autoComplete: "postal-code",
-      },
-      {
-        name: "country",
-        label: "Country",
-        maxLength: 120,
-        placeholder: "USA",
-        autoComplete: "country-name",
-      },
-    ],
-  },
-  {
     title: "Notes",
     description: "Anything worth remembering. No length limit.",
     fields: [
@@ -231,20 +212,53 @@ export const CONTACT_FIELDS: ContactFieldSpec[] = CONTACT_FIELD_GROUPS.flatMap(
   (group) => group.fields,
 );
 
-/** Every input the form submits: the text fields plus the photo data URL. */
-export const CONTACT_INPUT_NAMES: (keyof ContactInput)[] = [
+/** Every single-value input the form submits: the text fields plus the photo. */
+export const CONTACT_INPUT_NAMES: ContactTextField[] = [
   ...CONTACT_FIELDS.map((field) => field.name),
   "photo",
 ];
 
-/** Pull the contact fields out of a submitted form, as raw strings. */
-export function formDataToValues(
-  formData: FormData,
-): Record<keyof ContactInput, string> {
-  return Object.fromEntries(
-    CONTACT_INPUT_NAMES.map((name) => [
-      name,
-      String(formData.get(name) ?? ""),
-    ]),
-  ) as Record<keyof ContactInput, string>;
+/** The columns of one address row, in the order the row renders them. */
+export const ADDRESS_FIELD_NAMES = [
+  "type",
+  "street",
+  "city",
+  "state",
+  "postal_code",
+  "country",
+] as const satisfies readonly (keyof AddressInput)[];
+
+/** Form input name for one address column; repeated across rows. */
+export function addressInputName(field: keyof AddressInput): string {
+  return `address_${field}`;
+}
+
+/** Raw strings pulled out of a submitted contact form. */
+export type ContactFormRawValues = Record<ContactTextField, string> & {
+  addresses: AddressFormRow[];
+};
+
+/**
+ * Pull the contact fields out of a submitted form, as raw strings.
+ *
+ * Address rows repeat the same input names (`address_street`, …), so
+ * `FormData.getAll` yields one aligned array per column — every row renders
+ * every column, which keeps the arrays the same length in DOM order.
+ */
+export function formDataToValues(formData: FormData): ContactFormRawValues {
+  const text = Object.fromEntries(
+    CONTACT_INPUT_NAMES.map((name) => [name, String(formData.get(name) ?? "")]),
+  ) as Record<ContactTextField, string>;
+
+  const columns = ADDRESS_FIELD_NAMES.map((field) =>
+    formData.getAll(addressInputName(field)).map(String),
+  );
+  const rowCount = Math.max(...columns.map((column) => column.length), 0);
+  const addresses: AddressFormRow[] = Array.from({ length: rowCount }, (_, row) =>
+    Object.fromEntries(
+      ADDRESS_FIELD_NAMES.map((field, column) => [field, columns[column][row] ?? ""]),
+    ) as AddressFormRow,
+  );
+
+  return { ...text, addresses };
 }

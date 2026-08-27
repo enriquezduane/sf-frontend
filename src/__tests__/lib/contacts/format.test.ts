@@ -5,7 +5,7 @@ import {
   initials,
   jobLine,
 } from "@/lib/contacts/format";
-import { makeContact } from "../../mocks/handlers";
+import { makeAddress, makeContact } from "../../mocks/handlers";
 
 describe("initials", () => {
   it("takes the first letter of each name", () => {
@@ -51,19 +51,27 @@ describe("jobLine", () => {
 
 describe("addressLine", () => {
   it("skips the parts that are not filled in", () => {
-    expect(addressLine(makeContact())).toBe("San Francisco, CA, USA");
+    expect(addressLine(makeAddress({ street: "", state: null }))).toBe(
+      "San Francisco, USA",
+    );
   });
 
   it("pairs the state with the postal code", () => {
-    expect(
-      addressLine(makeContact({ address: "1 Market St", postal_code: "94105" })),
-    ).toBe("1 Market St, San Francisco, CA 94105, USA");
+    expect(addressLine(makeAddress({ postal_code: "94105" }))).toBe(
+      "1 Market St, Suite 400, San Francisco, CA 94105, USA",
+    );
   });
 
-  it("returns null when there is no address at all", () => {
+  it("returns null when nothing is filled in", () => {
     expect(
       addressLine(
-        makeContact({ city: null, state: null, country: null, postal_code: null }),
+        makeAddress({
+          street: "",
+          city: null,
+          state: null,
+          country: null,
+          postal_code: null,
+        }),
       ),
     ).toBeNull();
   });
