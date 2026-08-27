@@ -1,5 +1,5 @@
 import {
-  CONTACT_FIELDS,
+  CONTACT_INPUT_NAMES,
   contactInputSchema,
   formDataToValues,
   zodFieldErrors,
@@ -56,6 +56,19 @@ describe("contactInputSchema", () => {
     expect(zodFieldErrors(result.error!).email).toBe("Enter a valid email address");
   });
 
+  it("accepts an image data URL and nulls out a blank photo", () => {
+    const dataUrl = "data:image/png;base64,iVBORw0KGgo=";
+    expect(contactInputSchema.parse(values({ photo: dataUrl })).photo).toBe(dataUrl);
+    expect(contactInputSchema.parse(values({ photo: "" })).photo).toBeNull();
+  });
+
+  it("rejects a photo that is not an image data URL", () => {
+    const result = contactInputSchema.safeParse(
+      values({ photo: "https://example.com/ada.png" }),
+    );
+    expect(zodFieldErrors(result.error!).photo).toBe("Photo must be an image file");
+  });
+
   it("enforces the API's length limits", () => {
     const result = contactInputSchema.safeParse(
       values({ first_name: "a".repeat(101), postal_code: "9".repeat(21) }),
@@ -79,8 +92,6 @@ describe("formDataToValues", () => {
 
     expect(extracted.first_name).toBe("Grace");
     expect(extracted.last_name).toBe("");
-    expect(Object.keys(extracted).sort()).toEqual(
-      CONTACT_FIELDS.map((field) => field.name).sort(),
-    );
+    expect(Object.keys(extracted).sort()).toEqual([...CONTACT_INPUT_NAMES].sort());
   });
 });

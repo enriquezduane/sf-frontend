@@ -9,6 +9,12 @@ import type { ContactInput } from "./types";
  * and anything it rejects anyway is surfaced by `toFieldErrors` in `./api.ts`.
  */
 
+/** Largest file the picker accepts; base64 inflates it by ~4/3 on the wire. */
+export const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
+
+/** Mirror of the API's cap on the encoded data URL. */
+export const MAX_PHOTO_LENGTH = 5_000_000;
+
 /** Optional text: trimmed, and blank becomes `null` (the API clears the field). */
 function optionalText(max: number, label: string) {
   return z
@@ -49,6 +55,17 @@ export const contactInputSchema = z.object({
   notes: z
     .string()
     .trim()
+    .transform((value) => value || null)
+    .nullable()
+    .default(null),
+  photo: z
+    .string()
+    .trim()
+    .max(MAX_PHOTO_LENGTH, "Photo is too large — choose an image under 2 MB")
+    .refine(
+      (value) => value === "" || value.startsWith("data:image/"),
+      "Photo must be an image file",
+    )
     .transform((value) => value || null)
     .nullable()
     .default(null),
@@ -214,14 +231,20 @@ export const CONTACT_FIELDS: ContactFieldSpec[] = CONTACT_FIELD_GROUPS.flatMap(
   (group) => group.fields,
 );
 
+/** Every input the form submits: the text fields plus the photo data URL. */
+export const CONTACT_INPUT_NAMES: (keyof ContactInput)[] = [
+  ...CONTACT_FIELDS.map((field) => field.name),
+  "photo",
+];
+
 /** Pull the contact fields out of a submitted form, as raw strings. */
 export function formDataToValues(
   formData: FormData,
 ): Record<keyof ContactInput, string> {
   return Object.fromEntries(
-    CONTACT_FIELDS.map((field) => [
-      field.name,
-      String(formData.get(field.name) ?? ""),
+    CONTACT_INPUT_NAMES.map((name) => [
+      name,
+      String(formData.get(name) ?? ""),
     ]),
   ) as Record<keyof ContactInput, string>;
 }
